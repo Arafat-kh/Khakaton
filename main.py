@@ -31,3 +31,15 @@ def simple_forecast(df, years_col, values_col):
     
     prediction = slope * 2024 + intercept
     return prediction, slope
+uploaded_files = st.file_uploader(
+    "Выберите Excel файлы:",
+    type=['xlsx', 'xls'],
+    accept_multiple_files=True,
+    key="file_uploader"
+)
+
+if uploaded_files:
+    st.success(f"✅ Загружено файлов: {len(uploaded_files)}")
+    
+    for i, file in enumerate(uploaded_files):
+        st.write(f"{i+1}. {file.name}")
