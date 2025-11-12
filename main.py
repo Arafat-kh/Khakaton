@@ -12,6 +12,9 @@ st.set_page_config(
 
 st.title("🎓 Прогноз показателей ВУЗов на 2024 год")
 st.markdown("Загрузите данные мониторинга за 2015, 2020, 2021, 2022 годы")
+
+# ===================== Функции =====================
+
 def simple_forecast(df, years_col, values_col):
     """Простой прогноз на основе линейного тренда"""
     if len(df) < 2:
@@ -31,6 +34,34 @@ def simple_forecast(df, years_col, values_col):
     
     prediction = slope * 2024 + intercept
     return prediction, slope
+
+
+def select_stratified_vuz(combined_df, n_vuz=50):
+    """Стратифицированная выборка ВУЗов по регионам"""
+    if 'Region' not in combined_df.columns or 'VUZ' not in combined_df.columns:
+        return combined_df['VUZ'].unique()[:n_vuz].tolist()
+    
+    region_groups = combined_df.groupby('Region')
+    selected_vuz = []
+    
+    for region, group in region_groups:
+        region_vuz = group['VUZ'].unique()
+        region_quota = max(1, int(n_vuz * len(region_vuz) / len(combined_df['VUZ'].unique())))
+        selected_vuz.extend(region_vuz[:region_quota])
+    
+    if len(selected_vuz) < n_vuz:
+        region_sizes = combined_df.groupby('Region')['VUZ'].nunique().sort_values(ascending=False)
+        for region in region_sizes.index:
+            if len(selected_vuz) >= n_vuz:
+                break
+            region_vuz = combined_df[combined_df['Region'] == region]['VUZ'].unique()
+            new_vuz = [v for v in region_vuz if v not in selected_vuz]
+            selected_vuz.extend(new_vuz[:2])
+    
+    return selected_vuz[:n_vuz]
+
+# ===================== Интерфейс =====================
+
 uploaded_files = st.file_uploader(
     "Выберите Excel файлы:",
     type=['xlsx', 'xls'],
@@ -40,11 +71,10 @@ uploaded_files = st.file_uploader(
 
 if uploaded_files:
     st.success(f"✅ Загружено файлов: {len(uploaded_files)}")
-    
     for i, file in enumerate(uploaded_files):
         st.write(f"{i+1}. {file.name}")
+
 if uploaded_files and st.button("🚀 Построить прогноз на 2024 год", type="primary"):
-    
     progress_bar = st.progress(0)
     status_text = st.empty()
     
@@ -60,13 +90,11 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
         
         for file in uploaded_files:
             df = pd.read_excel(file)
-
             data_year = 2021
             for year_str, actual_year in year_mapping.items():
                 if year_str in file.name:
                     data_year = actual_year
                     break
-            
             df['data_year'] = data_year
             all_data.append(df)
         
@@ -94,7 +122,10 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
         results = []
         
         if 'VUZ' in combined_df.columns:
-            for vuz in combined_df['VUZ'].unique()[:50]:
+            # Используем стратифицированную выборку ВУЗов
+            selected_vuz_list = select_stratified_vuz(combined_df, n_vuz=50)
+
+            for vuz in selected_vuz_list:
                 vuz_data = combined_df[combined_df['VUZ'] == vuz]
                 
                 for col in target_columns:
@@ -115,6 +146,7 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
                                 'Направление': trend_direction,
                                 'Лет_данных': len(yearly_data)
                             })
+        
         progress_bar.progress(90)
         status_text.text("🎨 Готовим отчет...")
 
@@ -162,6 +194,7 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
             
             plt.tight_layout()
             st.pyplot(fig)
+
             st.subheader("📋 Статистика прогноза")
             col1, col2, col3, col4 = st.columns(4)
             
@@ -227,7 +260,7 @@ else:
     
     **Ожидаемые данные:**
     - Файлы мониторинга за 2015, 2020, 2021, 2022 годы
-    - Данные должны содержать названия ВУЗов и числовые показатели
+    - Данные должны содержать названия ВУЗов, регион и числовые показатели
     
     **Что будет проанализировано:**
     - Динамика ключевых показателей за последние годы
@@ -235,5 +268,3 @@ else:
     - Рейтинг ВУЗов по прогнозируемым показателям
     - Визуализация трендов и распределений
     """)
-
-
