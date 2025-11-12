@@ -13,7 +13,6 @@ st.set_page_config(
 st.title("🎓 Прогноз показателей ВУЗов на 2024 год")
 st.markdown("Загрузите данные мониторинга за 2015, 2020, 2021, 2022 годы")
 
-# ===================== ФУНКЦИИ =====================
 
 def simple_forecast(df, years_col, values_col):
     """Простой прогноз на основе линейного тренда"""
@@ -60,7 +59,11 @@ def select_stratified_vuz(combined_df, n_vuz=50):
     
     return selected_vuz[:n_vuz]
 
-# ===================== ИНТЕРФЕЙС =====================
+if "results_df" not in st.session_state:
+    st.session_state.results_df = None
+if "filtered_df" not in st.session_state:
+    st.session_state.filtered_df = None
+
 
 uploaded_files = st.file_uploader(
     "Выберите Excel файлы:",
@@ -123,7 +126,6 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
         results = []
         
         if 'VUZ' in combined_df.columns:
-            # Стратифицированная выборка ВУЗов
             selected_vuz_list = select_stratified_vuz(combined_df, n_vuz=50)
 
             for vuz in selected_vuz_list:
@@ -237,7 +239,6 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
             - Прогноз построен на основе исторических данных
             """)
 
-            # 📥 СКАЧИВАНИЕ РЕЗУЛЬТАТОВ
             st.subheader("📥 Скачать результаты")
 
             encoding_choice = st.radio(
