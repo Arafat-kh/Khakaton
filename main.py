@@ -60,6 +60,12 @@ def select_stratified_vuz(combined_df, n_vuz=50):
     
     return selected_vuz[:n_vuz]
 
+# ===================== ХРАНЕНИЕ СОСТОЯНИЯ =====================
+if "results_df" not in st.session_state:
+    st.session_state.results_df = None
+if "filtered_df" not in st.session_state:
+    st.session_state.filtered_df = None
+
 # ===================== ИНТЕРФЕЙС =====================
 
 uploaded_files = st.file_uploader(
@@ -122,7 +128,6 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
         results = []
         
         if 'VUZ' in combined_df.columns:
-            # Стратифицированная выборка ВУЗов
             selected_vuz_list = select_stratified_vuz(combined_df, n_vuz=50)
 
             for vuz in selected_vuz_list:
@@ -152,132 +157,80 @@ if uploaded_files and st.button("🚀 Построить прогноз на 202
 
         if results:
             results_df = pd.DataFrame(results)
-
+            st.session_state.results_df = results_df  # сохраняем
             progress_bar.progress(100)
             progress_bar.empty()
             status_text.empty()
-
-            st.subheader("📊 Результаты прогноза на 2024 год")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                selected_indicator = st.selectbox(
-                    "Выберите показатель:",
-                    results_df['Показатель'].unique()
-                )
-            with col2:
-                sort_by = st.selectbox(
-                    "Сортировать по:",
-                    ['Прогноз_2024', 'Тренд']
-                )
-
-            filtered_df = results_df[results_df['Показатель'] == selected_indicator]
-            filtered_df = filtered_df.sort_values(sort_by, ascending=False)
-            
-            st.dataframe(filtered_df.head(20), use_container_width=True)
-
-            st.subheader("📈 Визуализация прогнозов")
-            
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-
-            top_10 = filtered_df.head(10).sort_values('Прогноз_2024')
-            ax1.barh(top_10['ВУЗ'], top_10['Прогноз_2024'], color='lightblue')
-            ax1.set_xlabel('Прогноз на 2024 год')
-            ax1.set_title(f'Топ-10 ВУЗов по {selected_indicator}')
-
-            ax2.hist(filtered_df['Тренд'], bins=15, alpha=0.7, color='lightcoral', edgecolor='black')
-            ax2.axvline(x=0, color='red', linestyle='--', label='Нет изменений')
-            ax2.set_xlabel('Изменение в год')
-            ax2.set_ylabel('Количество ВУЗов')
-            ax2.set_title('Распределение трендов')
-            ax2.legend()
-            
-            plt.tight_layout()
-            st.pyplot(fig)
-
-            st.subheader("📋 Статистика прогноза")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                avg_forecast = filtered_df['Прогноз_2024'].mean()
-                st.metric("Средний прогноз", f"{avg_forecast:.1f}")
-            with col2:
-                max_forecast = filtered_df['Прогноз_2024'].max()
-                st.metric("Максимальный прогноз", f"{max_forecast:.1f}")
-            with col3:
-                growth_count = len(filtered_df[filtered_df['Тренд'] > 0])
-                st.metric("ВУЗов с ростом", growth_count)
-            with col4:
-                avg_trend = filtered_df['Тренд'].mean()
-                st.metric("Средний тренд", f"{avg_trend:.3f}")
-
-            st.subheader("📝 Выводы и обоснование")
-            
-            if avg_trend > 0.1:
-                conclusion = "Наблюдается положительная динамика показателей"
-                reason = "Возможные причины: улучшение качества образования, рост популярности ВУЗов"
-            elif avg_trend > -0.1:
-                conclusion = "Показатели остаются стабильными" 
-                reason = "Ситуация в высшем образовании относительно стабильна"
-            else:
-                conclusion = "Наблюдается негативная тенденция"
-                reason = "Возможные причины: демографические изменения, конкуренция"
-            
-            st.info(f"""
-            **{conclusion}**
-            
-            **Обоснование:** {reason}
-            
-            **Методология прогноза:**
-            - Использованы данные за последние доступные годы
-            - Применена линейная экстраполяция трендов
-            - Учтена индивидуальная динамика каждого ВУЗа
-            - Прогноз построен на основе исторических данных
-            """)
-
-            # 📥 СКАЧИВАНИЕ РЕЗУЛЬТАТОВ
-            st.subheader("📥 Скачать результаты")
-
-            encoding_choice = st.radio(
-                "Выберите кодировку файла:",
-                ["UTF-8 (рекомендуется)", "Windows-1251 (для Excel)"]
-            )
-
-            if encoding_choice == "UTF-8 (рекомендуется)":
-                csv = filtered_df.to_csv(index=False, sep=';', encoding='utf-8-sig')
-                filename = "прогноз_вузов_2024_utf8.csv"
-            else:
-                csv = filtered_df.to_csv(index=False, sep=';', encoding='cp1251')
-                filename = "прогноз_вузов_2024_win1251.csv"
-
-            st.download_button(
-                label="💾 Скачать CSV-файл",
-                data=csv,
-                file_name=filename,
-                mime="text/csv"
-            )
-            
         else:
-            progress_bar.empty()
-            status_text.empty()
-            st.warning("❌ Не удалось построить прогноз. Проверьте структуру данных.")
+            st.warning("❌ Не удалось построить прогноз.")
             
     except Exception as e:
         progress_bar.empty()
         status_text.empty()
         st.error(f"❌ Ошибка: {str(e)}")
 
+# ===================== ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ =====================
+
+if st.session_state.results_df is not None:
+    results_df = st.session_state.results_df
+
+    st.subheader("📊 Результаты прогноза на 2024 год")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_indicator = st.selectbox(
+            "Выберите показатель:",
+            results_df['Показатель'].unique()
+        )
+    with col2:
+        sort_by = st.selectbox(
+            "Сортировать по:",
+            ['Прогноз_2024', 'Тренд']
+        )
+
+    filtered_df = results_df[results_df['Показатель'] == selected_indicator]
+    filtered_df = filtered_df.sort_values(sort_by, ascending=False)
+    st.session_state.filtered_df = filtered_df  # сохраняем для скачивания
+
+    st.dataframe(filtered_df.head(20), use_container_width=True)
+
+    # ===================== СКАЧИВАНИЕ =====================
+    st.subheader("📥 Скачать результаты")
+
+    encoding_choice = st.radio(
+        "Выберите кодировку файла:",
+        ["UTF-8 (рекомендуется)", "Windows-1251 (для Excel)"],
+        horizontal=True,
+        key="encoding_radio"
+    )
+
+    if st.session_state.filtered_df is not None:
+        filtered_df = st.session_state.filtered_df
+
+        if encoding_choice == "UTF-8 (рекомендуется)":
+            csv = filtered_df.to_csv(index=False, sep=';', encoding='utf-8-sig')
+            filename = "прогноз_вузов_2024_utf8.csv"
+        else:
+            csv = filtered_df.to_csv(index=False, sep=';', encoding='cp1251')
+            filename = "прогноз_вузов_2024_win1251.csv"
+
+        st.download_button(
+            label="💾 Скачать CSV-файл",
+            data=csv,
+            file_name=filename,
+            mime="text/csv"
+        )
+
+        # 💡 Дополнительно: Excel-версия
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+            filtered_df.to_excel(writer, index=False, sheet_name='Прогноз 2024')
+        st.download_button(
+            label="📘 Скачать Excel-файл (.xlsx)",
+            data=buffer.getvalue(),
+            file_name="прогноз_вузов_2024.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 else:
-    st.info(""" 
-    👆 **Загрузите файлы данных для анализа**
-    
-    **Ожидаемые данные:**
-    - Файлы мониторинга за 2015, 2020, 2021, 2022 годы
-    - Должны содержать названия ВУЗов, регион и числовые показатели
-    
-    **Что будет проанализировано:**
-    - Динамика ключевых показателей за последние годы
-    - Прогноз значений на 2024 год
-    - Рейтинг ВУЗов по прогнозируемым показателям
-    - Визуализация трендов и распределений
-    """)
+    st.info("""👆 Загрузите файлы и нажмите «Построить прогноз».""")
+
